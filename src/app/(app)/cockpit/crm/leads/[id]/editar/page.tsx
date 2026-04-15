@@ -10,8 +10,15 @@ export default async function EditarLeadPage(props: { params: Promise<{ id: stri
   const params = await props.params
   const supabase = await createClient()
   
+  const me = await import('@/app/(app)/cockpit/actions').then(m => m.getMyProfile())
+  
   const { data: canais } = await supabase.from('crm_canais').select('id, nome').order('nome')
-  const { data: lead } = await supabase.from('crm_leads').select('*').eq('id', params.id).single()
+  
+  let query = supabase.from('crm_leads').select('*').eq('id', params.id)
+  if (me?.role_global !== 'superadmin') {
+    query = query.eq('empresa_id', me?.empresa_id ?? '')
+  }
+  const { data: lead } = await query.single()
 
   if (!lead) notFound()
 

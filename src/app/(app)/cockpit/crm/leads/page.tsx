@@ -41,7 +41,7 @@ export default async function LeadsPage(props: { searchParams: Promise<{ q?: str
     .order("created_at", { ascending: false })
 
   if (me?.role_global !== 'superadmin') {
-    query.eq('empresa_id', me?.empresa_id ?? '')
+    query = query.eq('empresa_id', me?.empresa_id ?? '')
   }
 
   if (q) {

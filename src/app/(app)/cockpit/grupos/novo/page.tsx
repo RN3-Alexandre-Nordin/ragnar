@@ -29,6 +29,7 @@ export default function NovoGrupoAcessoPage() {
   const [permissoes, setPermissoes] = useState<Record<string, string[]>>({})
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   useEffect(() => {
     async function loadInitialData() {
@@ -54,12 +55,16 @@ export default function NovoGrupoAcessoPage() {
   }, [])
 
   const handleSubmit = (formData: FormData) => {
+    setErrorMsg(null)
     // Append JSONB permissions and isAdmin flag
     formData.append('permissoes', JSON.stringify(permissoes))
     formData.append('is_admin', isAdmin ? 'true' : 'false')
     
-    startTransition(() => {
-      createGrupoAcesso(formData)
+    startTransition(async () => {
+      const result = await createGrupoAcesso(formData)
+      if (result?.error) {
+        setErrorMsg(result.error)
+      }
     })
   }
 
@@ -164,6 +169,13 @@ export default function NovoGrupoAcessoPage() {
             <strong className="text-gray-300">Dica de Segurança:</strong> Recomendamos o princípio do acesso mínimo. Garanta apenas o que for estritamente necessário para a função de cada usuário.
           </p>
         </div>
+
+        {errorMsg && (
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium animate-in fade-in flex items-center gap-2">
+            <Info className="w-5 h-5 flex-shrink-0" />
+            <p>{errorMsg}</p>
+          </div>
+        )}
 
         {/* Footer Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-[#ffffff0a]">

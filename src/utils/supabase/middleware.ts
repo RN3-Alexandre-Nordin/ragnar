@@ -43,10 +43,11 @@ export async function updateSession(request: NextRequest) {
   const publicRoutes = ['/', '/login'];
   const isPublicRoute = publicRoutes.includes(normalizedPathname);
   const isWebhook = normalizedPathname.startsWith('/api/webhooks');
+  const isInbound = normalizedPathname.startsWith('/api/inbound');
 
-  // 1. Prioridade máxima: Webhooks e Rotas Públicas (Sem esperar Auth)
-  if (isWebhook || isPublicRoute) {
-    if (isWebhook) return supabaseResponse;
+  // 1. Prioridade máxima: Webhooks, Inbound e Rotas Públicas (Sem esperar Auth)
+  if (isWebhook || isInbound || isPublicRoute) {
+    if (isWebhook || isInbound) return supabaseResponse;
   }
 
   const {

@@ -43,7 +43,9 @@ export default function NovoDepartamentoPage() {
       if (superAdmin) {
         const { data } = await supabase.from('empresas').select('id, nome').eq('ativo', true).order('nome')
         if (data) setEmpresas(data)
-      } else if (userData?.empresa_id) {
+      }
+      
+      if (userData?.empresa_id) {
         setSelectedEmpresa(userData.empresa_id)
       }
       
@@ -80,23 +82,27 @@ export default function NovoDepartamentoPage() {
       </div>
 
       <form action={handleSubmit} className="space-y-6">
-        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-6 relative overflow-hidden">
-          <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
-               style={{ background: 'radial-gradient(circle, #80B828 0%, transparent 70%)', filter: 'blur(30px)' }} />
+        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-6 relative shadow-xl">
+          <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+            <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04]"
+                 style={{ background: 'radial-gradient(circle, #80B828 0%, transparent 70%)', filter: 'blur(30px)' }} />
+          </div>
           
           <div className="grid grid-cols-1 gap-5">
-            <Field label="Vincular à Empresa" required>
-              <SearchableSelect
-                name="empresa_id"
-                required
-                icon={Building2}
-                options={empresas}
-                value={selectedEmpresa}
-                onChange={setSelectedEmpresa}
-                placeholder="Pesquisar empresa..."
-                disabled={loading}
-              />
-            </Field>
+            {isSuperAdmin && (
+              <Field label="Vincular à Empresa" required>
+                <SearchableSelect
+                  name="empresa_id"
+                  required
+                  icon={Building2}
+                  options={empresas}
+                  value={selectedEmpresa}
+                  onChange={setSelectedEmpresa}
+                  placeholder="Pesquisar empresa..."
+                  disabled={loading}
+                />
+              </Field>
+            )}
 
             <Field label="Nome do Departamento" required>
               <input 

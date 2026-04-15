@@ -54,12 +54,12 @@ export async function updateLead(id: string, formData: FormData) {
   
   const supabase = await createClient()
 
-  const query = supabase.from('crm_leads').update({
+  let query = supabase.from('crm_leads').update({
     nome, telefone, whatsapp, email, documento, cargo, empresa_cliente, canal_id
   }).eq('id', id)
 
   if (me?.role_global !== 'superadmin') {
-    query.eq('empresa_id', me?.empresa_id ?? '')
+    query = query.eq('empresa_id', me?.empresa_id ?? '')
   }
 
   const { error } = await query
@@ -80,9 +80,9 @@ export async function deleteLead(formData: FormData) {
   const id = formData.get('id') as string
   const supabase = await createClient()
   
-  const query = supabase.from('crm_leads').delete().eq('id', id)
+  let query = supabase.from('crm_leads').delete().eq('id', id)
   if (me?.role_global !== 'superadmin') {
-    query.eq('empresa_id', me?.empresa_id ?? '')
+    query = query.eq('empresa_id', me?.empresa_id ?? '')
   }
 
   const { error } = await query

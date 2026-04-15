@@ -1,7 +1,7 @@
 'use client'
 
 import { useTransition, useState, useEffect } from "react"
-import { updateUsuario, deleteUsuario } from "@/app/(app)/cockpit/actions"
+import { updateUsuario, deleteUsuario, getGruposByEmpresa } from "@/app/(app)/cockpit/actions"
 import Link from "next/link"
 import { Users, ArrowLeft, Building2, Shield, User as UserIcon, Save, Trash2, ShieldAlert, Phone, Hash, MapPin, Calendar } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
@@ -57,12 +57,7 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
   useEffect(() => {
     if (isSuperAdmin && selectedEmpresa !== user.empresa_id) {
       async function loadGroups() {
-        const supabase = createClient()
-        const { data } = await supabase
-          .from('grupos_acesso')
-          .select('id, nome')
-          .eq('empresa_id', selectedEmpresa)
-          .order('nome')
+        const data = await getGruposByEmpresa(selectedEmpresa)
         if (data) setGroups(data)
       }
       loadGroups()
@@ -105,9 +100,11 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
       </div>
 
       <form action={handleSubmit} className="space-y-6">
-        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-6 relative overflow-hidden shadow-xl">
-          <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
-               style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
+        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-6 relative shadow-xl">
+          <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+            <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04]"
+                 style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
+          </div>
           
           <div className="grid grid-cols-1 gap-5">
             {isSuperAdmin && (
@@ -166,7 +163,7 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
                 <SearchableSelect
                   name="grupo_id"
                   icon={Shield}
-                  options={groups}
+                  options={groups || []}
                   value={selectedGrupoId}
                   onChange={setSelectedGrupoId}
                   placeholder="Pesquisar grupo..."
@@ -213,9 +210,11 @@ export default function EditForm({ user, companies, groups: initialGroups, isSup
         </div>
 
         {/* ─── Seção 2: Informações Pessoais ─── */}
-        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative overflow-hidden">
-          <div className="absolute -top-20 -left-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
-               style={{ background: 'radial-gradient(circle, #80B828 0%, transparent 70%)', filter: 'blur(30px)' }} />
+        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative">
+          <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+            <div className="absolute -top-20 -left-20 w-48 h-48 rounded-full opacity-[0.04]"
+                 style={{ background: 'radial-gradient(circle, #80B828 0%, transparent 70%)', filter: 'blur(30px)' }} />
+          </div>
 
           <div className="flex flex-col gap-0.5 pb-4 border-b border-[#ffffff08]">
             <p className="text-sm font-semibold text-white">Informações Pessoais</p>

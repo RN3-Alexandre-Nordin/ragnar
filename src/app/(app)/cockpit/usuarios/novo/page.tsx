@@ -1,7 +1,7 @@
 'use client'
 
 import { useTransition, useEffect, useState } from "react"
-import { createUsuario } from "@/app/(app)/cockpit/actions"
+import { createUsuario, getGruposByEmpresa } from "@/app/(app)/cockpit/actions"
 import Link from "next/link"
 import { Users, ArrowLeft, Building2, Mail, Shield, User as UserIcon, Phone, MapPin, Hash, Calendar, KeyRound, Eye, EyeOff, UserPlus } from "lucide-react"
 import { createClient } from "@/utils/supabase/client"
@@ -78,12 +78,7 @@ export default function NovoUsuarioPage() {
   useEffect(() => {
     if (selectedEmpresa) {
       async function loadGroups() {
-        const supabase = createClient()
-        const { data } = await supabase
-          .from('grupos_acesso')
-          .select('id, nome')
-          .eq('empresa_id', selectedEmpresa)
-          .order('nome')
+        const data = await getGruposByEmpresa(selectedEmpresa)
         if (data) setGrupos(data)
       }
       loadGroups()
@@ -130,9 +125,11 @@ export default function NovoUsuarioPage() {
 
       <form action={handleSubmit} className="space-y-5" autoComplete="off">
         {/* ─── Seção 1: Acesso ─── */}
-        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative overflow-hidden">
-          <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
-               style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
+        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative shadow-xl">
+          <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+            <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04]"
+                 style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
+          </div>
           
           <SectionHeader title="Dados de Acesso" subtitle="Login, senha e permissões do usuário na plataforma" />
 
@@ -270,9 +267,11 @@ export default function NovoUsuarioPage() {
         </div>
 
         {/* ─── Seção 2: Informações Pessoais ─── */}
-        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative overflow-hidden">
-          <div className="absolute -top-20 -left-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
-               style={{ background: 'radial-gradient(circle, #80B828 0%, transparent 70%)', filter: 'blur(30px)' }} />
+        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative">
+          <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+            <div className="absolute -top-20 -left-20 w-48 h-48 rounded-full opacity-[0.04]"
+                 style={{ background: 'radial-gradient(circle, #80B828 0%, transparent 70%)', filter: 'blur(30px)' }} />
+          </div>
           
           <SectionHeader title="Informações Pessoais" subtitle="Dados de contato e identificação do colaborador (opcionais)" />
 

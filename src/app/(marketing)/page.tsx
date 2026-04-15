@@ -2,10 +2,20 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect } from "react";
-import { CheckCircle2, Brain, MessageSquare, Zap, ArrowRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { CheckCircle2, Brain, MessageSquare, Zap, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 
 export default function HomePage() {
+  const [formData, setFormData] = useState({
+    nome: "",
+    email: "",
+    empresa: "",
+    telefone: "",
+    mensagem: ""
+  });
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
+
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -28,6 +38,53 @@ export default function HomePage() {
 
     return () => observer.disconnect();
   }, []);
+
+  const validateEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage("");
+
+    // Validações
+    if (!formData.nome.trim()) return setErrorMessage("Por favor, informe seu nome.");
+    if (!validateEmail(formData.email)) return setErrorMessage("Informe um e-mail válido.");
+    if (!formData.telefone.trim()) return setErrorMessage("Informe seu telefone de contato.");
+
+    setStatus("loading");
+
+    try {
+      const response = await fetch("/api/inbound/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nome: formData.nome,
+          email: formData.email,
+          telefone: formData.telefone,
+          mensagem: `Empresa: ${formData.empresa} | Mensagem: ${formData.mensagem}`,
+          token_canal: process.env.NEXT_PUBLIC_LANDING_PAGE_TOKEN
+        }),
+      });
+
+      const result = await response.json();
+      console.log("[Lead Inbound] Resposta da API:", result);
+
+      if (!response.ok) {
+        throw new Error(result.error || "Erro ao enviar lead");
+      }
+
+      setStatus("success");
+      setFormData({ nome: "", email: "", empresa: "", telefone: "", mensagem: "" });
+      
+      // Reset success after 5 seconds
+      setTimeout(() => setStatus("idle"), 5000);
+    } catch (err: any) {
+      console.error("Erro no envio:", err);
+      setStatus("error");
+      setErrorMessage(err.message || "Ocorreu um erro ao enviar seus dados. Tente novamente.");
+    }
+  };
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-ragnar-blue/30 relative overflow-x-hidden">
@@ -439,33 +496,111 @@ export default function HomePage() {
           
           {/* Formulário Elegante */}
           <div className="reveal-on-scroll" style={{ transitionDelay: '150ms' }}>
-            <form className="bg-zinc-950 p-8 sm:p-10 rounded-[2.5rem] border border-white/5 shadow-2xl flex flex-col gap-6 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-ragnar-blue/5 blur-[100px] rounded-full pointer-events-none" />
-              
-              <div className="flex flex-col gap-2 relative z-10">
-                <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-2">Nome Completo</label>
-                <input type="text" className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" placeholder="Ex: João Silva" />
+            {status === "success" ? (
+              <div className="bg-zinc-950 p-12 sm:p-16 rounded-[2.5rem] border border-ragnar-blue/30 shadow-2xl flex flex-col items-center text-center gap-6 animate-in zoom-in duration-500">
+                <div className="w-20 h-20 rounded-full bg-ragnar-blue/10 flex items-center justify-center mb-2">
+                  <CheckCircle2 className="w-10 h-10 text-ragnar-blue" />
+                </div>
+                <h3 className="text-3xl font-black text-white tracking-tighter">Recebemos seu contato!</h3>
+                <p className="text-zinc-400 font-medium">
+                  Nossa equipe de especialistas já foi notificada e entrará em contato com você em breve.
+                </p>
+                <button 
+                  onClick={() => setStatus("idle")}
+                  className="mt-4 px-8 py-3 rounded-full border border-white/10 text-white text-sm font-bold hover:bg-white/5 transition-all"
+                >
+                  Enviar outra mensagem
+                </button>
               </div>
-              
-              <div className="flex flex-col gap-2 relative z-10">
-                <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-2">E-mail Corporativo</label>
-                <input type="email" className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" placeholder="joao@suaempresa.com.br" />
-              </div>
-              
-              <div className="flex flex-col gap-2 relative z-10">
-                <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-2">Empresa</label>
-                <input type="text" className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" placeholder="Qual o nome da sua operação?" />
-              </div>
-              
-              <div className="flex flex-col gap-2 relative z-10">
-                <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-2">Como podemos ajudar?</label>
-                <textarea rows={4} className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all resize-none placeholder:text-zinc-600" placeholder="Descreva brevemente os gargalos ou processos que deseja automatizar..." />
-              </div>
-              
-              <button type="button" className="mt-6 w-full px-8 py-5 rounded-full bg-zinc-100 hover:bg-white text-zinc-950 font-black tracking-wide transition-all shadow-[0_0_30px_-5px_rgba(255,255,255,0.2)] hover:scale-[1.02] active:scale-[0.98] relative z-10">
-                Solicitar Contato Comercial
-              </button>
-            </form>
+            ) : (
+              <form onSubmit={handleSubmit} className="bg-zinc-950 p-8 sm:p-10 rounded-[2.5rem] border border-white/5 shadow-2xl flex flex-col gap-5 relative overflow-hidden transition-all duration-500">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-ragnar-blue/5 blur-[100px] rounded-full pointer-events-none" />
+                
+                {errorMessage && (
+                  <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 text-xs font-bold flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                    {errorMessage}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-2 relative z-10">
+                    <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-2">Nome Completo</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={formData.nome}
+                      onChange={e => setFormData({...formData, nome: e.target.value})}
+                      className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" 
+                      placeholder="Ex: João Silva" 
+                    />
+                  </div>
+                  
+                  <div className="flex flex-col gap-2 relative z-10">
+                    <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-2">E-mail Corporativo</label>
+                    <input 
+                      type="email" 
+                      required
+                      value={formData.email}
+                      onChange={e => setFormData({...formData, email: e.target.value})}
+                      className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" 
+                      placeholder="joao@suaempresa.com.br" 
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-2 relative z-10">
+                    <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-2">Empresa</label>
+                    <input 
+                      type="text" 
+                      value={formData.empresa}
+                      onChange={e => setFormData({...formData, empresa: e.target.value})}
+                      className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" 
+                      placeholder="Nome da sua empresa" 
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-2 relative z-10">
+                    <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-2">WhatsApp / Telefone</label>
+                    <input 
+                      type="tel" 
+                      required
+                      value={formData.telefone}
+                      onChange={e => setFormData({...formData, telefone: e.target.value})}
+                      className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all placeholder:text-zinc-600" 
+                      placeholder="(DD) 99999-9999" 
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex flex-col gap-2 relative z-10">
+                  <label className="text-[11px] font-bold uppercase tracking-widest text-zinc-500 pl-2">Como podemos ajudar?</label>
+                  <textarea 
+                    rows={3} 
+                    value={formData.mensagem}
+                    onChange={e => setFormData({...formData, mensagem: e.target.value})}
+                    className="bg-zinc-900 border border-white/5 rounded-2xl p-4 text-zinc-100 text-sm outline-none focus:border-ragnar-blue/50 focus:bg-zinc-800/50 transition-all resize-none placeholder:text-zinc-600" 
+                    placeholder="Descreva brevemente sua necessidade..." 
+                  />
+                </div>
+                
+                <button 
+                  type="submit" 
+                  disabled={status === "loading"}
+                  className="mt-4 w-full px-8 py-5 rounded-full bg-zinc-100 hover:bg-white text-zinc-950 font-black tracking-wide transition-all shadow-[0_0_30px_-5px_rgba(255,255,255,0.2)] hover:scale-[1.02] active:scale-[0.98] relative z-10 disabled:opacity-50 disabled:scale-100 flex items-center justify-center gap-3"
+                >
+                  {status === "loading" ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Processando...
+                    </>
+                  ) : (
+                    "Solicitar Contato Comercial"
+                  )}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </section>

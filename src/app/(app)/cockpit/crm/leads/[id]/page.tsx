@@ -9,7 +9,9 @@ export default async function LeadProfilePage(props: { params: Promise<{ id: str
   const params = await props.params
   const supabase = await createClient()
 
-  const { data: lead } = await supabase
+  const me = await import('@/app/(app)/cockpit/actions').then(m => m.getMyProfile())
+  
+  let query = supabase
     .from('crm_leads')
     .select(`
        *,
@@ -22,7 +24,12 @@ export default async function LeadProfilePage(props: { params: Promise<{ id: str
        )
     `)
     .eq('id', params.id)
-    .single()
+  
+  if (me?.role_global !== 'superadmin') {
+    query = query.eq('empresa_id', me?.empresa_id ?? '')
+  }
+
+  const { data: lead } = await query.single()
   
   if (!lead) {
     notFound()

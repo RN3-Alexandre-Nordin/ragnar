@@ -117,6 +117,7 @@ export async function POST(
         const { data: currentCard } = await supabase
           .from('crm_cards')
           .select('id')
+          .eq('empresa_id', canal.empresa_id)
           .eq('lead_id', leadId)
           .eq('pipeline_id', pipeline.id)
           .limit(1)

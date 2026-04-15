@@ -1,8 +1,10 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { EvolutionApiService } from "@/lib/omnichannel/services/EvolutionApiService";
+import { getMyProfile } from "@/app/(app)/cockpit/actions";
 
 /**
  * Atualiza a configuração de IA de um canal.
@@ -129,9 +131,22 @@ export async function getReconnectQRCode(provider: string, providerId: string, a
  * Busca todos os pipelines (boards) e suas etapas para a empresa logada.
  */
 export async function getPipelinesAndStages(empresaId: string) {
-  const supabase = await createClient();
+  console.log('[getPipelinesAndStages] Iniciando consulta para empresa:', empresaId);
+  const me = await getMyProfile();
+  if (!me) {
+    console.error('[getPipelinesAndStages] Falha: Usuário não autenticado');
+    return { success: false, error: "Usuário não autenticado" };
+  }
 
-  const { data, error } = await supabase
+  // Permite se for Superadmin OU se o empresa_id do usuário bater com o da query
+  if (me.role_global !== 'superadmin' && me.empresa_id !== empresaId) {
+    console.error('[getPipelinesAndStages] Erro de Permissão:', { me_empresa: me.empresa_id, target: empresaId });
+    return { success: false, error: "Você não tem permissão para acessar os dados desta empresa." };
+  }
+
+  const supabaseAdmin = createAdminClient();
+
+  const { data, error } = await supabaseAdmin
     .from("pipelines")
     .select(`
       id,
@@ -146,10 +161,11 @@ export async function getPipelinesAndStages(empresaId: string) {
     .order("nome");
 
   if (error) {
-    console.error("Erro ao buscar pipelines:", error);
+    console.error("[getPipelinesAndStages] Erro no Banco:", error);
     return { success: false, error: error.message };
   }
 
+  console.log(`[getPipelinesAndStages] Sucesso: ${data?.length || 0} pipelines encontrados.`);
   return { success: true, data };
 }
 
@@ -157,10 +173,10 @@ export async function getPipelinesAndStages(empresaId: string) {
  * Cria um canal do tipo Landing Page com configuração de roteamento.
  */
 export async function createLandingPageChannel(nome: string, pipelineId: string, stageId: string, empresaId: string) {
-  const supabase = await createClient();
+  const supabaseAdmin = createAdminClient();
 
   // 1. Criar o Canal Interno
-  const { data: canal, error: canalError } = await supabase
+  const { data: canal, error: canalError } = await supabaseAdmin
     .from("crm_canais")
     .insert([
       {
@@ -182,7 +198,7 @@ export async function createLandingPageChannel(nome: string, pipelineId: string,
   }
 
   // 2. Criar configuração de roteamento
-  const { error: routeError } = await supabase
+  const { error: routeError } = await supabaseAdmin
     .from("crm_canais_roteamento")
     .insert([
       {
@@ -200,4 +216,64 @@ export async function createLandingPageChannel(nome: string, pipelineId: string,
 
   revalidatePath("/cockpit/configuracoes/canais");
   return { success: true, canalId: canal.id };
+}
+
+export async function updateLandingPageDestination(canalId: string, empresaId: string, nome: string, pipelineId: string, stageId: string) {
+  const me = await getMyProfile();
+  if (!me) return { success: false, error: "Usuário não autenticado" };
+
+  if (me.role_global !== 'superadmin' && me.empresa_id !== empresaId) {
+    return { success: false, error: "Sem acesso a esta empresa" };
+  }
+
+  const supabaseAdmin = createAdminClient();
+
+  // 1. Update nome
+  const { error: nomeError } = await supabaseAdmin
+    .from("crm_canais")
+    .update({ nome })
+    .eq("id", canalId);
+
+  if (nomeError) return { success: false, error: nomeError.message };
+
+  // 2. Update roteamento (using logic fetch-then-insert/update to avoid unique constraint issues)
+  const { data: existingRoute } = await supabaseAdmin
+    .from("crm_canais_roteamento")
+    .select("id")
+    .eq("canal_id", canalId)
+    .single();
+
+  if (existingRoute) {
+    const { error: updateError } = await supabaseAdmin
+      .from("crm_canais_roteamento")
+      .update({
+        pipeline_id: pipelineId,
+        stage_id: stageId,
+      })
+      .eq("id", existingRoute.id);
+    
+    if (updateError) {
+      console.error("Erro ao atualizar roteamento:", updateError);
+      return { success: false, error: updateError.message };
+    }
+  } else {
+    const { error: insertError } = await supabaseAdmin
+      .from("crm_canais_roteamento")
+      .insert([
+        {
+          canal_id: canalId,
+          org_id: empresaId,
+          pipeline_id: pipelineId,
+          stage_id: stageId,
+        }
+      ]);
+
+    if (insertError) {
+      console.error("Erro ao inserir roteamento:", insertError);
+      return { success: false, error: insertError.message };
+    }
+  }
+
+  revalidatePath("/cockpit/configuracoes/canais");
+  return { success: true };
 }

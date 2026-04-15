@@ -16,8 +16,8 @@ export async function createEmpresa(formData: FormData) {
     return { error: 'Acesso negado. Apenas superusuários ou usuários autorizados podem criar empresas.' }
   }
 
-  const supabase = await createClient()
-  const { error } = await supabase
+  const supabaseAdmin = createAdminClient()
+  const { error } = await supabaseAdmin
     .from('empresas')
     .insert([{
       nome: formData.get('nome') as string,
@@ -55,8 +55,8 @@ export async function updateEmpresa(empresaId: string, formData: FormData) {
     return { error: 'Sem permissão para editar empresas.' }
   }
 
-  const supabase = await createClient()
-  const { error } = await supabase
+  const supabaseAdmin = createAdminClient()
+  const { error } = await supabaseAdmin
     .from('empresas')
     .update({
       nome: formData.get('nome') as string,
@@ -94,8 +94,8 @@ export async function updateEmpresaStatus(empresaId: string, ativo: boolean) {
     return { error: 'Sem permissão para alterar status da empresa.' }
   }
 
-  const supabase = await createClient()
-  const { error } = await supabase
+  const supabaseAdmin = createAdminClient()
+  const { error } = await supabaseAdmin
     .from('empresas')
     .update({ ativo, status: ativo ? 'active' : 'suspended' })
     .eq('id', empresaId)
@@ -196,8 +196,8 @@ export async function deleteEmpresa(empresaId: string) {
     return { error: 'Sem permissão para excluir empresas.' }
   }
 
-  const supabase = await createClient()
-  const { error } = await supabase
+  const supabaseAdmin = createAdminClient()
+  const { error } = await supabaseAdmin
     .from('empresas')
     .delete()
     .eq('id', empresaId)
@@ -243,7 +243,8 @@ export async function createGrupoAcesso(formData: FormData) {
     empresa_id = me?.empresa_id ?? ''
   }
 
-  const { error } = await supabase
+  const supabaseAdmin = createAdminClient()
+  const { error } = await supabaseAdmin
     .from('grupos_acesso')
     .insert([{ nome, descricao, empresa_id, permissoes, is_admin }])
 
@@ -288,7 +289,8 @@ export async function updateGrupoAcesso(id: string, formData: FormData) {
     empresa_id = me?.empresa_id ?? ''
   }
 
-  const { error } = await supabase
+  const supabaseAdmin = createAdminClient()
+  const { error } = await supabaseAdmin
     .from('grupos_acesso')
     .update({ nome, descricao, empresa_id, permissoes, is_admin })
     .eq('id', id)
@@ -320,7 +322,8 @@ export async function deleteGrupoAcesso(id: string) {
   }
 
   // 3. Isolamento de Tenant
-  const query = supabase.from('grupos_acesso').delete().eq('id', id)
+  const supabaseAdmin = createAdminClient()
+  const query = supabaseAdmin.from('grupos_acesso').delete().eq('id', id)
   if (me?.role_global !== 'superadmin') {
     query.eq('empresa_id', me?.empresa_id ?? '')
   }
@@ -644,5 +647,25 @@ export async function getTodayMovementsDetails(userId: string) {
   return { data }
 }
 
+export async function getGruposByEmpresa(empresaId: string) {
+  const me = await getMyProfile()
+  if (!me) return []
 
+  // Ensure user is superadmin OR belongs to the same tenant
+  if (me.role_global !== 'superadmin' && me.empresa_id !== empresaId) {
+    return []
+  }
 
+  const supabaseAdmin = createAdminClient()
+  const { data, error } = await supabaseAdmin
+    .from('grupos_acesso')
+    .select('id, nome, empresa_id')
+    .eq('empresa_id', empresaId)
+    .order('nome')
+
+  if (error) {
+    console.error("Erro getGruposByEmpresa", error)
+  }
+
+  return data || []
+}

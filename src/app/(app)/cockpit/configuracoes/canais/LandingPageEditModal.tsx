@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, ChevronRight, Zap, CheckCircle2, Layout, Loader2 } from "lucide-react";
-import { getPipelinesAndStages, createLandingPageChannel } from "./actions";
+import { getPipelinesAndStages, createLandingPageChannel, updateLandingPageDestination } from "./actions";
 import { createClient } from "@/utils/supabase/client";
 import { revalidatePath } from "next/cache";
 
@@ -29,9 +29,16 @@ export default function LandingPageEditModal({ canal, onClose, onUpdated }: Land
       setIsLoading(true);
       try {
         // 1. Buscar pipelines disponíveis
+        console.log('[Modal] Buscando pipelines para empresa:', canal.empresa_id);
         const res = await getPipelinesAndStages(canal.empresa_id);
         if (res.success && res.data) {
+          console.log('[Modal] Pipelines carregados:', res.data.length);
           setPipelines(res.data);
+          if (res.data.length === 0) {
+            setError("Nenhum quadro de CRM encontrado para esta empresa. Crie um quadro no menu CRM primeiro.");
+          }
+        } else {
+          setError(res.error || "Erro ao carregar pipelines");
         }
 
         // 2. Buscar roteamento atual do canal
@@ -62,24 +69,8 @@ export default function LandingPageEditModal({ canal, onClose, onUpdated }: Land
     setError("");
 
     try {
-      // 1. Atualizar nome do canal
-      const { error: nomeError } = await supabase
-        .from("crm_canais")
-        .update({ nome })
-        .eq("id", canal.id);
-
-      if (nomeError) throw new Error(nomeError.message);
-
-      // 2. Atualizar configuração de roteamento existente
-      const { error: routingError } = await supabase
-        .from("crm_canais_roteamento")
-        .update({
-          pipeline_id: selectedPipelineId,
-          stage_id: selectedStageId,
-        })
-        .eq("canal_id", canal.id);
-
-      if (routingError) throw new Error(routingError.message);
+      const res = await updateLandingPageDestination(canal.id, canal.empresa_id, nome, selectedPipelineId, selectedStageId);
+      if (!res.success) throw new Error(res.error);
 
       // 3. Notificar o componente pai
       onUpdated({ ...canal, nome });
@@ -140,6 +131,33 @@ export default function LandingPageEditModal({ canal, onClose, onUpdated }: Land
             <p className="text-gray-500 text-sm font-medium">
               Atualize o nome e o roteamento de leads desta Landing Page.
             </p>
+
+          {/* Token Visualizer - Very prominent */}
+          {(canal.token || canal.provider_token) && (
+            <div className="p-5 rounded-3xl bg-orange-500/10 border border-orange-500/20 space-y-3 animate-in fade-in zoom-in duration-500">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black text-orange-500 uppercase tracking-widest leading-none flex items-center gap-2">
+                  <Zap className="w-3.5 h-3.5" />
+                  Token de Integração (Webhook)
+                </span>
+                <span className="text-[9px] font-bold text-orange-500/50 uppercase tracking-tighter">Use este token na sua Landing Page</span>
+              </div>
+              <div className="flex items-center gap-2 bg-[#000000] p-1.5 rounded-2xl border border-orange-500/10">
+                <code className="text-xs text-orange-300 font-mono flex-1 px-3 py-2 truncate select-all">{canal.token || canal.provider_token}</code>
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(canal.token || canal.provider_token);
+                    alert("Token copiado para a área de transferência!");
+                  }}
+                  type="button"
+                  className="px-4 py-2.5 rounded-xl bg-orange-500 text-white text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/20 active:scale-95 flex items-center gap-2"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Copiar
+                </button>
+              </div>
+            </div>
+          )}
           </div>
 
           {/* Success */}

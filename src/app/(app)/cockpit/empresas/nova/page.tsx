@@ -1,7 +1,8 @@
 'use client'
 
 import { useTransition, useState, useEffect } from "react"
-import { createEmpresa } from "@/app/(app)/cockpit/actions"
+import { createEmpresa, getMyProfile } from "@/app/(app)/cockpit/actions"
+import { hasPermission } from "@/utils/permissions"
 import { maskCNPJ, maskPhone, validateCNPJ } from "@/utils/brasilian-formatters"
 import Link from "next/link"
 import { Building2, ArrowLeft, User, Phone, Mail, Globe, MapPin, Briefcase, AlertCircle, Sparkles, ShieldCheck, Cpu, Lock, Clock } from "lucide-react"
@@ -37,6 +38,7 @@ const inputCls = "w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2
 export default function NovaEmpresaPage() {
   const [isPending, startTransition] = useTransition()
   const [isSuperuser, setIsSuperuser] = useState<boolean | null>(null)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   
   // States for masks and validation
   const [cnpj, setCnpj] = useState("")
@@ -46,12 +48,10 @@ export default function NovaEmpresaPage() {
 
   useEffect(() => {
     async function checkAccess() {
-      const supabase = createClient()
-      const { data } = await supabase
-        .from('usuarios')
-        .select('is_superuser')
-        .single()
-      setIsSuperuser(data?.is_superuser === true)
+      const profile = await getMyProfile()
+      const isSuperadmin = profile?.role_global === 'superadmin'
+      const canCreate = hasPermission(profile, 'empresas', 'create')
+      setIsSuperuser(isSuperadmin || canCreate)
     }
     checkAccess()
   }, [])
@@ -71,8 +71,12 @@ export default function NovaEmpresaPage() {
   }
 
   const handleSubmit = (formData: FormData) => {
-    startTransition(() => {
-      createEmpresa(formData)
+    setErrorMsg(null)
+    startTransition(async () => {
+      const result = await createEmpresa(formData)
+      if (result?.error) {
+        setErrorMsg(result.error)
+      }
     })
   }
 
@@ -312,6 +316,13 @@ export default function NovaEmpresaPage() {
 
 
         {/* ─── Footer de Ações ─── */}
+        {errorMsg && (
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium animate-in fade-in flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <p>{errorMsg}</p>
+          </div>
+        )}
+        
         <div className="flex items-center justify-between">
           <p className="text-xs text-gray-600">
             <span className="text-[#2BAADF]">*</span> Campos obrigatórios

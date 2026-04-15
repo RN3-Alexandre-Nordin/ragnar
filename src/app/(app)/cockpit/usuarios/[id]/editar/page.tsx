@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server"
 import { notFound } from "next/navigation"
 import EditForm from "./EditForm"
+import { getGruposByEmpresa } from "@/app/(app)/cockpit/actions"
 
 export default async function EditarUsuarioPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params
@@ -32,11 +33,7 @@ export default async function EditarUsuarioPage(props: { params: Promise<{ id: s
   const { data: companies } = await supabase.from('empresas').select('id, nome').eq('ativo', true).order('nome')
   
   // For the initial groups, load the user's company's groups
-  const { data: groups } = await supabase
-    .from('grupos_acesso')
-    .select('id, nome')
-    .eq('empresa_id', user.empresa_id)
-    .order('nome')
+  const groups = await getGruposByEmpresa(user.empresa_id)
 
   return (
     <div className="space-y-6">

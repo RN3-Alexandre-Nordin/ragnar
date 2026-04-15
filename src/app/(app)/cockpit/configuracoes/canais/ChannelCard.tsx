@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CheckCircle2, QrCode, AlertCircle, Bot, Trash2, Loader2, Power, Share2, Eye, Globe, MessageSquare, MessageCircle, Mail, ChevronRight, X, RefreshCw, Layout } from "lucide-react";
+import { CheckCircle2, QrCode, AlertCircle, Bot, Trash2, Loader2, Power, Share2, Eye, Globe, MessageSquare, MessageCircle, Mail, ChevronRight, X, RefreshCw, Layout, Key, Copy } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import { updateChannelAIConfig, deleteChannel, getReconnectQRCode, syncChannelStatus, toggleChannelStatus } from "./actions";
 import LandingPageEditModal from "./LandingPageEditModal";
@@ -205,6 +205,27 @@ export default function ChannelCard({ canal: initialCanal, onDelete }: { canal: 
           <p className="text-gray-500 text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2">
             {info.name} <span className="w-1 h-1 rounded-full bg-gray-800" /> {info.label}
           </p>
+
+          {/* Token Visualizer for Landing Pages */}
+          {canal.provider === 'internal' && (canal.token || canal.provider_token) && (
+            <div className="mt-4 p-3 rounded-xl bg-[#0A0A0A] border border-[#ffffff0a] group/token relative flex flex-col gap-1.5 transition-colors hover:border-[#2BAADF]/20">
+              <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest leading-none flex items-center gap-1.5">
+                <Key className="w-3 h-3 text-orange-500" />
+                Token da Conexão
+              </span>
+              <div className="flex items-center gap-2">
+                <code className="text-xs text-[#2BAADF] font-mono flex-1 truncate select-all bg-[#2BAADF]/5 py-1 px-2 rounded">{canal.token || canal.provider_token}</code>
+                <button 
+                  onClick={() => navigator.clipboard.writeText(canal.token || canal.provider_token)}
+                  type="button"
+                  className="p-1.5 rounded-md text-gray-500 hover:bg-[#ffffff10] hover:text-white transition-colors"
+                  title="Copiar token"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* IA Smart Agent Control — oculto para canais internos (Landing Page) */}
