@@ -54,3 +54,4 @@ jobs:
             SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             NEXT_PUBLIC_APP_URL=https://ragnar.supa.rn3.tec.br
+            NEXT_PUBLIC_LANDING_PAGE_TOKEN=${{ secrets.NEXT_PUBLIC_LANDING_PAGE_TOKEN }}
