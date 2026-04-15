@@ -1,0 +1,341 @@
+'use client'
+
+import { useTransition, useState, useEffect } from "react"
+import { updateUsuario, deleteUsuario } from "@/app/(app)/cockpit/actions"
+import Link from "next/link"
+import { Users, ArrowLeft, Building2, Shield, User as UserIcon, Save, Trash2, ShieldAlert, Phone, Hash, MapPin, Calendar } from "lucide-react"
+import { createClient } from "@/utils/supabase/client"
+import { maskPhone } from "@/utils/brasilian-formatters"
+import SearchableSelect from "@/components/SearchableSelect"
+
+interface UserProfile {
+  id: string
+  auth_user_id: string
+  nome_completo: string | null
+  email: string | null
+  role_global: string
+  grupo_id: string | null
+  empresa_id: string
+  is_superuser: boolean
+  telefone: string | null
+  ramal: string | null
+  endereco: string | null
+  data_nascimento: string | null
+  empresas?: { id: string, nome: string }
+}
+
+interface EditFormProps {
+  user: UserProfile
+  companies: { id: string, nome: string }[]
+  groups: { id: string, nome: string }[]
+  isSuperAdmin: boolean
+  currentUserIsSuperuser: boolean
+}
+
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
+        {label} {required && <span className="text-[#2BAADF]">*</span>}
+      </label>
+      {children}
+    </div>
+  )
+}
+
+const inputCls = "w-full bg-[#0A0A0A] border border-[#ffffff12] focus:border-[#2BAADF] rounded-xl px-4 py-2.5 text-sm text-white outline-none transition-all placeholder-gray-600 focus:ring-1 focus:ring-[#2BAADF]/30"
+
+export default function EditForm({ user, companies, groups: initialGroups, isSuperAdmin, currentUserIsSuperuser }: EditFormProps) {
+  const [isPending, startTransition] = useTransition()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [selectedEmpresa, setSelectedEmpresa] = useState(user.empresa_id)
+  const [selectedGrupoId, setSelectedGrupoId] = useState(user.grupo_id || "")
+  const [groups, setGroups] = useState(initialGroups)
+  const [telefone, setTelefone] = useState(user.telefone || "")
+
+  // Load groups whenever empresa changes (if superadmin)
+  useEffect(() => {
+    if (isSuperAdmin && selectedEmpresa !== user.empresa_id) {
+      async function loadGroups() {
+        const supabase = createClient()
+        const { data } = await supabase
+          .from('grupos_acesso')
+          .select('id, nome')
+          .eq('empresa_id', selectedEmpresa)
+          .order('nome')
+        if (data) setGroups(data)
+      }
+      loadGroups()
+    } else if (selectedEmpresa === user.empresa_id) {
+      setGroups(initialGroups)
+    }
+  }, [selectedEmpresa, isSuperAdmin, user.empresa_id, initialGroups])
+
+  const handleSubmit = (formData: FormData) => {
+    startTransition(() => {
+      updateUsuario(user.id, formData)
+    })
+  }
+
+  const handleDelete = () => {
+    startTransition(() => {
+      deleteUsuario(user.id, user.auth_user_id)
+    })
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6 pb-20">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Link
+          href="/cockpit/usuarios"
+          className="p-2 rounded-lg bg-[#ffffff05] hover:bg-[#ffffff0a] text-gray-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Link>
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-3">
+            <Users className="w-6 h-6 text-[#2BAADF]" />
+            Configurar Perfil
+          </h2>
+          <p className="text-sm text-gray-400 mt-0.5">
+            E-mail: <span className="text-white/80">{user.email}</span>
+          </p>
+        </div>
+      </div>
+
+      <form action={handleSubmit} className="space-y-6">
+        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-6 relative overflow-hidden shadow-xl">
+          <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
+               style={{ background: 'radial-gradient(circle, #2BAADF 0%, transparent 70%)', filter: 'blur(30px)' }} />
+          
+          <div className="grid grid-cols-1 gap-5">
+            {isSuperAdmin && (
+              <Field label="Empresa (Tenant)" required>
+                <SearchableSelect
+                  name="empresa_id"
+                  required
+                  icon={Building2}
+                  options={companies}
+                  value={selectedEmpresa}
+                  onChange={setSelectedEmpresa}
+                  placeholder="Pesquisar empresa..."
+                />
+              </Field>
+            )}
+            
+            {!isSuperAdmin && <input type="hidden" name="empresa_id" value={selectedEmpresa} />}
+
+            <Field label="Nome Completo" required>
+              <div className="relative">
+                <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input 
+                  type="text" 
+                  name="nome_completo" 
+                  required 
+                  defaultValue={user.nome_completo || ""}
+                  className={`${inputCls} pl-10`} 
+                />
+              </div>
+            </Field>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <Field label="Level (Role Global)" required>
+                <div className="relative">
+                  <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                  <select
+                    name="role_global"
+                    required
+                    defaultValue={user.role_global}
+                    className={`${inputCls} pl-10 appearance-none`}
+                  >
+                    <option value="operador">Operador (Padrão)</option>
+                    <option value="admin">Administrador Empresa</option>
+                    <option value="visualizador">Apenas Visualização</option>
+                    {isSuperAdmin && <option value="superadmin">SuperAdmin (RAGNAR)</option>}
+                  </select>
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                    <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
+                      <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                    </svg>
+                  </div>
+                </div>
+              </Field>
+
+              <Field label="Grupo de Acesso">
+                <SearchableSelect
+                  name="grupo_id"
+                  icon={Shield}
+                  options={groups}
+                  value={selectedGrupoId}
+                  onChange={setSelectedGrupoId}
+                  placeholder="Pesquisar grupo..."
+                />
+              </Field>
+            </div>
+
+            {/* Superusuário Toggle — visível apenas para quem já é superuser */}
+            {currentUserIsSuperuser && (
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-amber-400" />
+                    <span className="text-sm font-semibold text-amber-300">Superusuário RN3</span>
+                    <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Apenas RN3</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="hidden"
+                      name="is_superuser"
+                      value="false"
+                    />
+                    <input
+                      type="checkbox"
+                      name="is_superuser"
+                      value="true"
+                      defaultChecked={user.is_superuser}
+                      className="sr-only peer"
+                      onChange={(e) => {
+                        // Update the hidden input when checkbox changes
+                        const hiddenInput = e.currentTarget.previousElementSibling as HTMLInputElement
+                        if (hiddenInput) hiddenInput.disabled = e.currentTarget.checked
+                      }}
+                    />
+                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500" />
+                  </label>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Superusuários têm acesso irrestrito a todas as empresas e podem criar novos tenants na plataforma. Use com extrema cautela.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ─── Seção 2: Informações Pessoais ─── */}
+        <div className="bg-[#111111] border border-[#ffffff0a] rounded-2xl p-6 space-y-5 relative overflow-hidden">
+          <div className="absolute -top-20 -left-20 w-48 h-48 rounded-full opacity-[0.04] pointer-events-none"
+               style={{ background: 'radial-gradient(circle, #80B828 0%, transparent 70%)', filter: 'blur(30px)' }} />
+
+          <div className="flex flex-col gap-0.5 pb-4 border-b border-[#ffffff08]">
+            <p className="text-sm font-semibold text-white">Informações Pessoais</p>
+            <p className="text-xs text-gray-500">Dados de contato e identificação do colaborador</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <Field label="Telefone / WhatsApp">
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="tel"
+                  name="telefone"
+                  value={telefone}
+                  onChange={(e) => setTelefone(maskPhone(e.target.value))}
+                  placeholder="(11) 98765-4321"
+                  maxLength={16}
+                  className={`${inputCls} pl-10`}
+                />
+              </div>
+            </Field>
+
+            <Field label="Ramal">
+              <div className="relative">
+                <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="text"
+                  name="ramal"
+                  defaultValue={user.ramal || ""}
+                  placeholder="Ex: 4002"
+                  maxLength={10}
+                  className={`${inputCls} pl-10`}
+                />
+              </div>
+            </Field>
+
+            <Field label="Data de Nascimento">
+              <div className="relative">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="date"
+                  name="data_nascimento"
+                  defaultValue={user.data_nascimento?.slice(0, 10) || ""}
+                  className={`${inputCls} pl-10`}
+                  style={{ colorScheme: 'dark' }}
+                />
+              </div>
+            </Field>
+          </div>
+
+          <Field label="Endereço">
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <input
+                type="text"
+                name="endereco"
+                defaultValue={user.endereco || ""}
+                placeholder="Rua, número, bairro, cidade – UF"
+                className={`${inputCls} pl-10`}
+              />
+            </div>
+          </Field>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="flex items-center justify-between pt-4 border-t border-[#ffffff0a]">
+          <div className="flex items-center gap-4">
+            {!showDeleteConfirm ? (
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="group flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-red-500/70 hover:text-red-500 hover:bg-red-500/10 transition-all border border-transparent hover:border-red-500/20"
+              >
+                <Trash2 className="w-4 h-4" />
+                Remover Acesso
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2 animate-in fade-in slide-in-from-left-2 transition-all">
+                <ShieldAlert className="w-4 h-4 text-red-500" />
+                <span className="text-[10px] font-bold uppercase tracking-tight text-red-500">Excluir definitavamente?</span>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={isPending}
+                  className="bg-red-500 hover:bg-red-600 text-white text-[10px] uppercase tracking-wider font-bold px-3 py-1 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {isPending ? '...' : 'Sim, Excluir'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="text-gray-400 hover:text-white text-[10px] uppercase tracking-wider font-bold"
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={isPending}
+              className="bg-gradient-to-r from-[#2BAADF] to-[#1A8FBF] hover:shadow-[0_4px_24px_rgba(43,170,223,0.35)] disabled:opacity-50 disabled:cursor-not-allowed text-white px-8 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center gap-2"
+            >
+              {isPending ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Salvar Perfil
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  )
+}

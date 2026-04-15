@@ -1,0 +1,648 @@
+'use server'
+
+import { createClient } from '@/utils/supabase/server'
+import { createAdminClient } from '@/utils/supabase/admin'
+import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import { hasPermission } from '@/utils/permissions'
+import { getFullPermissionsJSON } from '@/constants/permissions'
+import { EvolutionApiService } from '@/lib/omnichannel/services/EvolutionApiService'
+
+export async function createEmpresa(formData: FormData) {
+  const me = await getMyProfile()
+  
+  // Guard: SuperAdmin RN3 ou permissão explícita 'create' no módulo 'empresas'
+  if (me?.role_global !== 'superadmin' && !hasPermission(me, 'empresas', 'create')) {
+    return { error: 'Acesso negado. Apenas superusuários ou usuários autorizados podem criar empresas.' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('empresas')
+    .insert([{
+      nome: formData.get('nome') as string,
+      cnpj: formData.get('cnpj') as string || null,
+      email: formData.get('email') as string || null,
+      telefone: formData.get('telefone') as string || null,
+      website: formData.get('website') as string || null,
+      endereco: formData.get('endereco') as string || null,
+      ramo_atividade: formData.get('ramo_atividade') as string || null,
+      responsavel_nome: formData.get('responsavel_nome') as string || null,
+      responsavel_cargo: formData.get('responsavel_cargo') as string || null,
+      responsavel_email: formData.get('responsavel_email') as string || null,
+      responsavel_telefone: formData.get('responsavel_telefone') as string || null,
+      // Novos campos de IA (Gemini)
+      gemini_api_key: formData.get('gemini_api_key') as string || null,
+      ai_context_prompt: formData.get('ai_context_prompt') as string || null,
+      ai_model: formData.get('ai_model') as string || 'gemini-2.0-flash-latest',
+      ia_silence_timeout: Number(formData.get('ia_silence_timeout')) || 60,
+      ativo: true,
+      status: 'active',
+    }])
+
+  if (error) {
+    console.error("Erro ao criar empresa", error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/empresas')
+  redirect('/cockpit/empresas')
+}
+
+export async function updateEmpresa(empresaId: string, formData: FormData) {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'empresas', 'edit')) {
+    return { error: 'Sem permissão para editar empresas.' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('empresas')
+    .update({
+      nome: formData.get('nome') as string,
+      cnpj: formData.get('cnpj') as string || null,
+      email: formData.get('email') as string || null,
+      telefone: formData.get('telefone') as string || null,
+      website: formData.get('website') as string || null,
+      endereco: formData.get('endereco') as string || null,
+      ramo_atividade: formData.get('ramo_atividade') as string || null,
+      responsavel_nome: formData.get('responsavel_nome') as string || null,
+      responsavel_cargo: formData.get('responsavel_cargo') as string || null,
+      responsavel_email: formData.get('responsavel_email') as string || null,
+      responsavel_telefone: formData.get('responsavel_telefone') as string || null,
+      // Novos campos de IA
+      gemini_api_key: formData.get('gemini_api_key') as string || null,
+      ai_context_prompt: formData.get('ai_context_prompt') as string || null,
+      ai_model: formData.get('ai_model') as string || 'gemini-2.0-flash-latest',
+      ia_silence_timeout: Number(formData.get('ia_silence_timeout')) || 60,
+    })
+    .eq('id', empresaId)
+
+  if (error) {
+    console.error("Erro ao atualizar empresa", error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/empresas')
+  revalidatePath(`/cockpit/empresas/${empresaId}/editar`)
+  redirect(`/cockpit/empresas/${empresaId}/editar`)
+}
+
+export async function updateEmpresaStatus(empresaId: string, ativo: boolean) {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'empresas', 'edit')) {
+    return { error: 'Sem permissão para alterar status da empresa.' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('empresas')
+    .update({ ativo, status: ativo ? 'active' : 'suspended' })
+    .eq('id', empresaId)
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/empresas')
+}
+
+export async function createDepartamento(formData: FormData) {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'departamentos', 'create')) {
+    return { error: 'Sem permissão para criar departamentos.' }
+  }
+
+  const nome = formData.get('nome') as string
+  const empresa_id = me?.role_global === 'superadmin' ? formData.get('empresa_id') as string : me?.empresa_id ?? ''
+  const descricao = formData.get('descricao') as string
+
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('departamentos')
+    .insert([{ nome, empresa_id, descricao }])
+
+  if (error) {
+    console.error("Erro ao criar departamento", error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/departamentos')
+  redirect('/cockpit/departamentos')
+}
+
+export async function updateDepartamento(id: string, formData: FormData) {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'departamentos', 'edit')) {
+    return { error: 'Sem permissão para editar departamentos.' }
+  }
+
+  const nome = formData.get('nome') as string
+  const descricao = formData.get('descricao') as string
+  const empresa_id = me?.role_global === 'superadmin' ? formData.get('empresa_id') as string : me?.empresa_id ?? ''
+
+  const supabase = await createClient()
+
+  const query = supabase
+    .from('departamentos')
+    .update({ nome, descricao, empresa_id })
+    .eq('id', id)
+
+  // Tenant Isolation: Impede edição de ID de outra empresa
+  if (me?.role_global !== 'superadmin') {
+    query.eq('empresa_id', me?.empresa_id ?? '')
+  }
+
+  const { error } = await query
+
+  if (error) {
+    console.error("Erro ao atualizar departamento", error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/departamentos')
+  revalidatePath(`/cockpit/departamentos/${id}/editar`)
+  redirect('/cockpit/departamentos')
+}
+
+export async function deleteDepartamento(id: string) {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'departamentos', 'delete')) {
+    return { error: 'Sem permissão para excluir departamentos.' }
+  }
+
+  const supabase = await createClient()
+  const query = supabase.from('departamentos').delete().eq('id', id)
+  
+  if (me?.role_global !== 'superadmin') {
+    query.eq('empresa_id', me?.empresa_id ?? '')
+  }
+
+  const { error } = await query
+
+  if (error) {
+    console.error("Erro ao deletar departamento", error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/departamentos')
+  redirect('/cockpit/departamentos')
+}
+
+export async function deleteEmpresa(empresaId: string) {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'empresas', 'delete')) {
+    return { error: 'Sem permissão para excluir empresas.' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('empresas')
+    .delete()
+    .eq('id', empresaId)
+
+  if (error) {
+    console.error("Erro ao deletar empresa", error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/empresas')
+  redirect('/cockpit/empresas')
+}
+
+export async function createGrupoAcesso(formData: FormData) {
+  const nome = formData.get('nome') as string
+  const descricao = formData.get('descricao') as string
+  const is_admin = formData.get('is_admin') === 'true'
+  const permissoesStr = formData.get('permissoes') as string
+  
+  // Se for admin, ignora o que veio do front e gera o JSON completo
+  const permissoes = is_admin 
+    ? getFullPermissionsJSON() 
+    : JSON.parse(permissoesStr || '{}')
+
+  const supabase = await createClient()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+
+  // 1. Obter perfil do usuário com grupo e permissões
+  const { data: me } = await supabase
+    .from('usuarios')
+    .select('*, grupos_acesso(is_admin, permissoes)')
+    .eq('auth_user_id', authUser?.id ?? '')
+    .single()
+
+  // 2. RBAC: Validar permissão de criação
+  if (!hasPermission(me, 'grupos', 'create')) {
+    return { error: 'Você não tem permissão para criar grupos de acesso.' }
+  }
+
+  // 3. Isolamento de Tenant (Segurança Crítica)
+  let empresa_id = formData.get('empresa_id') as string
+  if (me?.role_global !== 'superadmin') {
+    empresa_id = me?.empresa_id ?? ''
+  }
+
+  const { error } = await supabase
+    .from('grupos_acesso')
+    .insert([{ nome, descricao, empresa_id, permissoes, is_admin }])
+
+  if (error) {
+    console.error("Erro ao criar grupo", error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/grupos')
+  redirect('/cockpit/grupos')
+}
+
+export async function updateGrupoAcesso(id: string, formData: FormData) {
+  const nome = formData.get('nome') as string
+  const descricao = formData.get('descricao') as string
+  const is_admin = formData.get('is_admin') === 'true'
+  const permissoesStr = formData.get('permissoes') as string
+  
+  // Se for admin, ignora o que veio do front e gera o JSON completo
+  const permissoes = is_admin 
+    ? getFullPermissionsJSON() 
+    : JSON.parse(permissoesStr || '{}')
+
+  const supabase = await createClient()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+
+  // 1. Obter perfil do usuário
+  const { data: me } = await supabase
+    .from('usuarios')
+    .select('*, grupos_acesso(is_admin, permissoes)')
+    .eq('auth_user_id', authUser?.id ?? '')
+    .single()
+
+  // 2. RBAC: Validar permissão de edição
+  if (!hasPermission(me, 'grupos', 'edit')) {
+    return { error: 'Você não tem permissão para editar este grupo.' }
+  }
+
+  // 3. Isolamento de Tenant (Segurança Crítica)
+  let empresa_id = formData.get('empresa_id') as string
+  if (me?.role_global !== 'superadmin') {
+    empresa_id = me?.empresa_id ?? ''
+  }
+
+  const { error } = await supabase
+    .from('grupos_acesso')
+    .update({ nome, descricao, empresa_id, permissoes, is_admin })
+    .eq('id', id)
+
+  if (error) {
+    console.error("Erro ao atualizar grupo", error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/grupos')
+  revalidatePath(`/cockpit/grupos/${id}/editar`)
+  redirect('/cockpit/grupos')
+}
+
+export async function deleteGrupoAcesso(id: string) {
+  const supabase = await createClient()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+
+  // 1. Obter perfil do usuário
+  const { data: me } = await supabase
+    .from('usuarios')
+    .select('*, grupos_acesso(is_admin, permissoes)')
+    .eq('auth_user_id', authUser?.id ?? '')
+    .single()
+
+  // 2. RBAC: Validar permissão de exclusão
+  if (!hasPermission(me, 'grupos', 'delete')) {
+    return { error: 'Você não tem permissão para excluir este grupo.' }
+  }
+
+  // 3. Isolamento de Tenant
+  const query = supabase.from('grupos_acesso').delete().eq('id', id)
+  if (me?.role_global !== 'superadmin') {
+    query.eq('empresa_id', me?.empresa_id ?? '')
+  }
+
+  const { error } = await query
+
+  if (error) {
+    console.error("Erro ao deletar grupo", error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/grupos')
+  redirect('/cockpit/grupos')
+}
+
+export async function createUsuario(formData: FormData) {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'usuarios', 'invite')) {
+    return { error: 'Sem permissão para convidar/criar usuários.' }
+  }
+
+  const email = formData.get('email') as string
+  const senha = formData.get('senha') as string
+  const nome_completo = formData.get('nome_completo') as string
+  const empresa_id = me?.role_global === 'superadmin' ? formData.get('empresa_id') as string : me?.empresa_id ?? ''
+  const role_global = formData.get('role_global') as string
+  const grupo_id = formData.get('grupo_id') as string || null
+  const telefone = formData.get('telefone') as string || null
+  const ramal = formData.get('ramal') as string || null
+  const endereco = formData.get('endereco') as string || null
+  const data_nascimento = formData.get('data_nascimento') as string || null
+
+  const supabaseAdmin = createAdminClient()
+
+  // Criar usuário diretamente no Auth sem enviar e-mail de convite
+  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password: senha,
+    email_confirm: true, // Confirma imediatamente, sem necessidade de verificação por e-mail
+    user_metadata: { nome_completo, role_global }
+  })
+  
+  if (authError) {
+    console.error("Erro ao criar usuário no Auth", authError)
+    return { error: authError.message }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('usuarios').insert([{
+    id: authData.user.id,
+    auth_user_id: authData.user.id,
+    email,
+    nome_completo,
+    empresa_id,
+    role_global,
+    grupo_id,
+    telefone,
+    ramal,
+    endereco,
+    data_nascimento,
+  }])
+
+  if (error) {
+    console.error("Erro ao criar perfil de usuário", error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/usuarios')
+  redirect('/cockpit/usuarios')
+}
+
+export async function updateUsuario(id: string, formData: FormData) {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'usuarios', 'edit')) {
+    return { error: 'Sem permissão para editar usuários.' }
+  }
+
+  const nome_completo = formData.get('nome_completo') as string
+  const role_global = formData.get('role_global') as string
+  const grupo_id = formData.get('grupo_id') as string || null
+  const empresa_id = me?.role_global === 'superadmin' ? formData.get('empresa_id') as string : me?.empresa_id ?? ''
+  const is_superuser_raw = formData.get('is_superuser')
+  const is_superuser = is_superuser_raw === 'true'
+  const telefone = formData.get('telefone') as string || null
+  const ramal = formData.get('ramal') as string || null
+  const endereco = formData.get('endereco') as string || null
+  const data_nascimento = formData.get('data_nascimento') as string || null
+
+  const supabase = await createClient()
+
+  // Build update payload - only include is_superuser if it was explicitly sent
+  const updatePayload: Record<string, unknown> = { nome_completo, role_global, grupo_id, empresa_id, telefone, ramal, endereco, data_nascimento }
+  if (is_superuser_raw !== null) {
+    updatePayload.is_superuser = is_superuser
+  }
+
+  const { error } = await supabase
+    .from('usuarios')
+    .update(updatePayload)
+    .eq('id', id)
+
+  if (error) {
+    console.error("Erro ao atualizar usuário", error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/usuarios')
+  revalidatePath(`/cockpit/usuarios/${id}/editar`)
+  redirect('/cockpit/usuarios')
+}
+
+export async function deleteUsuario(id: string, auth_user_id: string) {
+  const me = await getMyProfile()
+  if (!hasPermission(me, 'usuarios', 'delete')) {
+    return { error: 'Sem permissão para excluir usuários.' }
+  }
+
+  const supabaseAdmin = createAdminClient()
+
+  if (auth_user_id) {
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(auth_user_id)
+    if (authError) {
+      console.error("Erro ao deletar usuário no Auth", authError)
+      return { error: authError.message }
+    }
+  }
+
+  const supabase = await createClient()
+  const query = supabase.from('usuarios').delete().eq('id', id)
+  
+  if (me?.role_global !== 'superadmin') {
+    query.eq('empresa_id', me?.empresa_id ?? '')
+  }
+
+  const { error } = await query
+
+  if (error) {
+    console.error("Erro ao deletar perfil de usuário", error)
+    return { error: error.message }
+  }
+
+  revalidatePath('/cockpit/usuarios')
+  redirect('/cockpit/usuarios')
+}
+
+export async function getMyProfile() {
+  const supabase = await createClient()
+  const { data: { user: authUser } } = await supabase.auth.getUser()
+  if (!authUser) return null
+
+  const { data: me } = await supabase
+    .from('usuarios')
+    .select('*, grupos_acesso(is_admin, permissoes)')
+    .eq('auth_user_id', authUser.id)
+    .single()
+    
+  return me
+}
+
+
+export async function getWorkflowActivities(userId: string) {
+  const me = await getMyProfile()
+  if (!me) return { error: 'Não autenticado' }
+
+  const supabase = await createClient()
+
+  // Buscar todos os cards assigned to user que não estão finalizados
+  const { data, error } = await supabase
+    .from('crm_cards')
+    .select(`
+      id,
+      titulo,
+      data_prazo,
+      pipeline_id,
+      stage_id,
+      pipelines (
+        nome
+      ),
+      pipeline_stages (
+        nome
+      )
+    `)
+    .eq('responsavel_id', userId)
+    .eq('finalizado', false)
+    .order('data_prazo', { ascending: true })
+
+  if (error) {
+    console.error("Erro ao buscar atividades de workflow", error)
+    return { error: error.message }
+  }
+
+  return { data }
+}
+
+
+
+export async function getCockpitMetrics(userId: string) {
+  const me = await getMyProfile()
+  if (!me) return { error: 'Não autenticado' }
+
+  const supabase = await createClient()
+
+  // 1. Cards Atrasados (Data estritamente antes de hoje na DB)
+  const { count: countAtrasados } = await supabase
+    .from('crm_cards')
+    .select('*', { count: 'exact', head: true })
+    .eq('responsavel_id', userId)
+    .eq('finalizado', false)
+    .filter('data_prazo', 'lt', 'now()') // Postgres handles 'now()' effectively relative to current_date if it's timestamp
+
+  // Para bater EXATAMENTE com o SQL do usuário: data_prazo < current_date
+  // Usamos a data local do servidor (ou passada pelo cliente se necessário)
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const { count: countAtrasadosFinal } = await supabase
+    .from('crm_cards')
+    .select('*', { count: 'exact', head: true })
+    .eq('responsavel_id', userId)
+    .eq('finalizado', false)
+    .lt('data_prazo', todayStr)
+
+  const { count: countHoje } = await supabase
+    .from('crm_cards')
+    .select('*', { count: 'exact', head: true })
+    .eq('responsavel_id', userId)
+    .eq('finalizado', false)
+    .gte('data_prazo', todayStr)
+    .lt('data_prazo', new Date(new Date(todayStr).getTime() + 86400000).toISOString().split('T')[0])
+
+  // Contador de Movimentações (Status Changed) de HOJE feito por este usuário
+  const { count: countMovimentacoes } = await supabase
+    .from('crm_cards_history')
+    .select('*', { count: 'exact', head: true })
+    .eq('usuario_id', userId)
+    .eq('acao', 'STATUS_CHANGED')
+    .gte('created_at', todayStr)
+
+  // Gargalo Atual: Contagem de cards ativos por estágio
+  const { data: bottleneckData } = await getCockpitBottleneck(userId)
+  const winner = bottleneckData && bottleneckData.length > 0 ? bottleneckData[0] : null
+  const bottleneckStr = winner ? `${winner.count} em ${winner.stageName}` : 'Fluindo'
+
+  return { 
+    data: {
+      atrasados: countAtrasadosFinal || 0,
+      hoje: countHoje || 0,
+      movimentacoes: countMovimentacoes || 0,
+      gargalo: bottleneckStr,
+      chats: 12 
+    }
+  }
+}
+
+export async function getCockpitBottleneck(userId: string) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('crm_cards')
+    .select(`
+      stage_id,
+      pipeline_id,
+      pipeline_stages ( nome )
+    `)
+    .eq('responsavel_id', userId)
+    .eq('finalizado', false)
+
+  if (error) {
+     console.error("Erro ao buscar gargalos", error)
+     return { error: error.message }
+  }
+
+  // Agrupamento manual em JS (eficiente para volumes típicos de cockpit)
+  const grouping: Record<string, { stageName: string, count: number, pipelineId: string, stageId: string }> = {}
+  
+  data.forEach((card: any) => {
+     const sId = card.stage_id
+     if (!grouping[sId]) {
+        grouping[sId] = {
+           stageId: sId,
+           stageName: card.pipeline_stages?.nome || 'Sem Nome',
+           count: 0,
+           pipelineId: card.pipeline_id
+        }
+     }
+     grouping[sId].count++
+  })
+
+  const sorted = Object.values(grouping).sort((a,b) => b.count - a.count)
+
+  return { data: sorted }
+}
+
+export async function getTodayMovementsDetails(userId: string) {
+  const supabase = await createClient()
+  const todayStr = new Date().toISOString().split('T')[0]
+
+  const { data, error } = await supabase
+    .from('crm_cards_history')
+    .select(`
+      id,
+      created_at,
+      card_id,
+      acao,
+      crm_cards (
+        titulo,
+        pipeline_id
+      ),
+      de_stage:pipeline_stages!de_stage_id ( nome ),
+      para_stage:pipeline_stages!para_stage_id ( nome )
+    `)
+    .eq('usuario_id', userId)
+    .eq('acao', 'STATUS_CHANGED')
+    .gte('created_at', todayStr)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+     console.error("Erro ao buscar histórico de hoje", error)
+     return { error: error.message }
+  }
+
+  return { data }
+}
+
+
+

@@ -1,0 +1,64 @@
+import { Building2, Share2, Plus, Info, CheckCircle2, QrCode, AlertCircle, Bot } from "lucide-react";
+import { getMyProfile } from "@/app/(app)/cockpit/actions";
+import { createClient } from "@/utils/supabase/server";
+import { redirect } from "next/navigation";
+import ChannelList from "./ChannelList";
+
+export const metadata = {
+  title: "Gestão de Canais | Ragnar",
+};
+
+export default async function ChannelsPage() {
+  const me = await getMyProfile();
+  if (!me) redirect("/login");
+
+  const supabase = await createClient();
+
+  // Buscar canais da empresa logada
+  const { data: canais, error } = await supabase
+    .from("crm_canais")
+    .select("*")
+    .eq("empresa_id", me.empresa_id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Erro ao buscar canais:", error);
+  }
+
+  return (
+    <div className="flex flex-col gap-8 max-w-7xl mx-auto w-full animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-[#ffffff0a]">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500/20 to-orange-600/10 flex items-center justify-center border border-orange-500/20 shadow-[0_0_20px_-5px_#f9731633]">
+            <Share2 className="w-7 h-7 text-orange-500" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic italic-ragnar">
+              Canais Omnichannel
+            </h2>
+            <p className="text-gray-500 text-sm font-medium mt-1">
+              Conecte seus pontos de contato e ative o Agente de IA para escalar seu atendimento.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Info Card */}
+      <div className="bg-blue-500/5 border border-blue-500/10 rounded-2xl p-5 flex items-start gap-4">
+        <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center shrink-0 border border-blue-500/10">
+          <Info className="w-5 h-5 text-blue-400" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-sm font-bold text-blue-100">Configuração de Webhooks</p>
+          <p className="text-xs text-blue-400 leading-relaxed font-medium">
+            O Ragnar utiliza uma camada de abstração universal. Certifique-se de que a Evolution API está configurada para enviar eventos de <span className="text-blue-300 font-bold">messages.upsert</span> para o seu endpoint dinâmico.
+          </p>
+        </div>
+      </div>
+
+      {/* Channel List Component (Client Side for Interactive Actions) */}
+      <ChannelList initialChannels={canais || []} empresaId={me.empresa_id} />
+    </div>
+  );
+}

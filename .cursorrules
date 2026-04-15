@@ -1,0 +1,50 @@
+1. Visão do Produto (O Conceito)
+O Ragnar não é apenas um CRM ou um Chatbot. É um Business OS (Sistema Operacional de Negócios) baseado em Workflows Inteligentes. Ele deve orquestrar processos (Vendas, Logística, Atendimento) de forma modular, onde a IA é o motor de decisão e o usuário humano é o supervisor.
+
+2. Segurança e Multi-tenancy (Lei Suprema)
+Isolamento de Dados (Tenant): Toda e qualquer query ao banco de dados (Supabase/Postgres) DEVE incluir obrigatoriamente o filtro organization_id. Nenhuma informação pode vazar entre empresas.
+
+RBAC (Role-Based Access Control): O acesso a telas e botões deve ser validado via user_permissions. A interface deve se auto-ocultar caso o usuário não tenha o nível de acesso necessário (Admin, Gerente, Operador).
+
+Segurança de API: Toda integração externa deve usar chaves de API rotativas e criptografia para dados sensíveis.
+
+Data-Driven UI: O acesso a funcionalidades e visibilidade de componentes (botões, menus, telas) NÃO deve ser baseado em hardcode. Ele deve ser derivado diretamente da tabela de Matriz de Permissões.
+
+Granularidade: A segurança deve atuar no nível de ação (Ver, Criar, Editar, Excluir) conforme mapeado na interface (image_5447c8.png).
+
+Middleware de Proteção: Toda rota no Front-end (Next.js/React) deve passar por um componente de alta ordem (HOC) ou Hook que valide se o user_group do usuário logado possui a flag Ver ativa para aquele recurso específico.
+
+Sincronia com Backend: Esconder o botão no Front-end é UX; bloquear o endpoint no Backend é Segurança. Ambos devem usar a mesma tabela de Matriz de Permissões como única fonte de verdade.
+
+3. Inteligência Artificial (A Camada Cerebral)
+RAG (Retrieval-Augmented Generation): A IA nunca deve alucinar. Se a informação não está na Base de Conhecimento, ela deve admitir e oferecer transbordo.
+
+Structured Output: A IA deve sempre fornecer tags de sistema (ex: [ACTION: ...], [STATUS_CRM: ...]) para que o software tome decisões automáticas sem intervenção humana.
+
+IA Onipresente: A inteligência não está só no chat; ela deve estar no resumo de cards, na classificação de urgência de e-mails e na sugestão de próximos passos de workflow.
+
+4. Orquestração de Fluxos (Workflows SDD)
+Schema-Driven: Nenhuma regra de negócio deve ser fixa no código. O comportamento do sistema é definido por um Schema JSON (Workflow Schema) que descreve os estágios, gatilhos e ações de cada processo.
+
+Interatividade: Um fluxo pode disparar outro. (Ex: O fechamento de uma venda no Workflow de CRM dispara automaticamente um card no Workflow de Logística).
+
+5. Ecossistema e Integrações (ERPs & Especialistas)
+API-First: O Ragnar deve ser fácil de integrar. Toda ação importante deve possuir um Webhook de saída e um Endpoint de entrada.
+
+Sistemas Especialistas: O sistema deve estar pronto para consultar sistemas externos (ex: JD Edwards, Protheus, SAP) para validar créditos, consultar estoques reais ou emitir notas fiscais em tempo real.
+
+6. [ADICIONAL] Agnosticismo de Interface (UI/UX)
+Componentização Extrema: Use componentes atômicos. Se mudarmos o design system amanhã, o motor de workflow não deve quebrar.
+
+Feedback ao Usuário: Toda ação de IA ou integração pesada deve exibir estados de "Loading" ou "Processing" para evitar a sensação de travamento.
+
+7. [ADICIONAL] Auditabilidade e Logs
+Traceability: Toda ação automatizada pela IA deve deixar um log de "Por que isso foi feito?" (Reasoning). No caso de erros em workflows, o sistema deve registrar o payload enviado para facilitar o debug.
+
+### 8. [NOVO] Lógica do Agente de IA e Atendimento (Antigravity)
+- [cite_start]**Modo Silêncio (Timeout):** Antes de qualquer resposta de IA, valide o `ia_silence_timeout` da organização[cite: 4]. Se houver interação humana recente (campo `last_human_interaction`), a IA deve permanecer em silêncio e apenas logar a mensagem.
+- **Triagem Multimodal:** O agente deve processar texto, áudio (transcrição/resumo) e imagem (visão computacional para suporte) usando o Gemini 2.5.
+- **Handover Humano:** A IA deve identificar gatilhos de transbordamento. Ao detectar, deve:
+    1. Alterar o status do chat para `atendimento`.
+    2. [cite_start]Gerar um `Structured Output` [cite: 10] com o resumo da conversa para o Card do operador.
+- [cite_start]**Auditabilidade:** Toda decisão da IA de responder ou silenciar deve gerar um log de `Reasoning`[cite: 21, 22].
