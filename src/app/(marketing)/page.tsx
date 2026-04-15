@@ -55,6 +55,7 @@ export default function HomePage() {
     setStatus("loading");
 
     try {
+      console.log("Token Payload:", process.env.NEXT_PUBLIC_LANDING_PAGE_TOKEN);
       const response = await fetch("/api/inbound/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -63,7 +64,7 @@ export default function HomePage() {
           email: formData.email,
           telefone: formData.telefone,
           mensagem: `Empresa: ${formData.empresa} | Mensagem: ${formData.mensagem}`,
-          token_canal: process.env.NEXT_PUBLIC_LANDING_PAGE_TOKEN
+          token: process.env.NEXT_PUBLIC_LANDING_PAGE_TOKEN
         }),
       });
 
@@ -71,7 +72,7 @@ export default function HomePage() {
       console.log("[Lead Inbound] Resposta da API:", result);
 
       if (!response.ok) {
-        throw new Error(result.error || "Erro ao enviar lead");
+        throw new Error(result.error || result.message || "Erro ao enviar lead");
       }
 
       setStatus("success");

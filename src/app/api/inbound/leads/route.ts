@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     email?: string;
     telefone?: string;
     mensagem?: string;
-    token_canal?: string;
+    token?: string;
   };
 
   try {
@@ -32,13 +32,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const { nome, email, telefone, mensagem, token_canal } = body;
+  const { nome, email, telefone, mensagem, token } = body;
 
-  if (!nome || !email || !telefone || !token_canal) {
+  if (!nome || !email || !telefone || !token) {
     return NextResponse.json(
       {
         error: 'Campos obrigatórios ausentes.',
-        required: ['nome', 'email', 'telefone', 'token_canal'],
+        required: ['nome', 'email', 'telefone', 'token'],
       },
       { status: 400 }
     );
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   const { data: canal, error: canalError } = await supabase
     .from('crm_canais')
     .select('id, status, empresa_id')
-    .eq('token', token_canal)
+    .eq('token', token)
     .single();
 
   if (canalError || !canal) {
